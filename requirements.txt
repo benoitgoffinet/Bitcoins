@@ -1,14 +1,8 @@
-dash
-plotly
-pandas
-numpy
-
-scikit-learn>=1.6,<2.0
-category-encoders>=2.8.0
-
-requests
-
-mlflow<3.0.0
-azureml-mlflow>=1.60.0
-
-gunicorn
+dash==2.18.2
+gunicorn==23.0.0
+plotly==5.24.1
+pandas==2.2.3
+scikit-learn==1.5.2
+category-encoders==2.6.3     # version plus ancienne compatible avec scikit-learn<1.6
+requests==2.32.3
+azureml-mlflow==1.60.0
