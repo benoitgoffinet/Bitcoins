@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/CePC/projetdemission/bitcoins/mlruns/336071456166487890/9e69416206b1413abd5dcce70ab94695/artifacts
+end_time: 1763556390756
+entry_point_name: ''
+experiment_id: '336071456166487890'
+lifecycle_stage: active
+run_id: 9e69416206b1413abd5dcce70ab94695
+run_name: Data_2025-11-19
+run_uuid: 9e69416206b1413abd5dcce70ab94695
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1763556390690
+status: 3
+tags: []
+user_id: CePC

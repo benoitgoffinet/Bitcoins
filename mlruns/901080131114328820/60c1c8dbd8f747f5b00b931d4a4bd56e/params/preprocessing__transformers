@@ -1,0 +1,1 @@
+[('num', StandardScaler(), ['MA30', 'MA_diff', 'vol_7d', 'MA7', 'vol_MA7', 'highest_30', 'lowest_30', 'pos_channel_30']), ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), [])]
