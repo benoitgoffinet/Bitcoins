@@ -114,7 +114,6 @@ def load_latest_model(targetname: str, experiment_name: str, run_name, df):
 
     if experiment is None:
         # si l’expérience n’existe pas → build + train
-            if model is None: 
               ndf = df.copy()
               ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
               ndf = ndf.iloc[:-3]
