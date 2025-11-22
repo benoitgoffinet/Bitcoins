@@ -6,3 +6,4 @@ scikit-learn==1.5.2
 category-encoders==2.6.3     # version plus ancienne compatible avec scikit-learn<1.6
 requests==2.32.3
 azureml-mlflow==1.60.0
+matplotlib
