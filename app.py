@@ -10,6 +10,7 @@ import mlflow
 from mlflow.tracking import MlflowClient
 from builddata import build_dataset
 from builddata import get_btc_history
+from builddata import load_latest_data
 from train import train
 
 
@@ -36,67 +37,6 @@ client = MlflowClient()
 # =========================
 
 
-def load_latest_data(experiment_name: str, run_name):
-    """
-    - Vérifie si l'expérience existe
-    - Vérifie si un run existe
-    - Vérifie si le modèle se charge
-    - Si quelque chose manque → build_data() + train()
-    """
-
-    # ---------------------------
-    # 1) Vérifier si l'expérience existe
-    # ---------------------------
-    experiment = mlflow.get_experiment_by_name(experiment_name)
-
-    if experiment is None:
-        # si l’expérience n’existe pas → build + train
-        df = build_dataset()
-        # recréer l'expérience après entraînement
-        experiment = mlflow.get_experiment_by_name(experiment_name)
-
-    # maintenant on est sûr que l'expérience existe
-    experiment_id = experiment.experiment_id
-
-
-    # petite fonction interne pour chercher le dernier modèle
-    def _search_and_load():
-        runs = mlflow.search_runs(
-            experiment_ids=[experiment_id],
-            filter_string=(
-                f"and tags.mlflow.runName = '{run_name}' "
-                f"and attributes.status = 'FINISHED'"
-            ),
-            max_results=1,
-        )
-        if runs.empty:
-            return None
-
-        run_id = runs.iloc[0].run_id
-        client = MlflowClient()
-        local_path = client.download_artifacts(run_id, "dataframe")
-        csv_files = [f for f in os.listdir(local_path) if f.endswith(".csv")]
-        if not csv_files:
-                return None  # aucun CSV trouvé = problème
-        csv_path = os.path.join(local_path, csv_files[0])  # premier CSV trouvé
-        df = pd.read_csv(csv_path)
-        return df
-
-    # --------------------------------------
-    # 2) Première tentative de chargement
-    # --------------------------------------
-    try:
-        df = _search_and_load()
-    except Exception:
-        df = None
-
-    # --------------------------------------
-    # 3) Si rien trouvé → build + train
-    # --------------------------------------
-    if df is None:  
-        df = build_dataset()
-
-    return df
 
 
 def load_latest_model(targetname: str, experiment_name: str, run_name, df):
