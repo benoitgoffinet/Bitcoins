@@ -129,3 +129,74 @@ def train(dexplicative, target, ciblename):
  f1_cv = grid_search.best_score_
  sandmlflow(experience, run, model, f1_cv, f1_macro, accuracy, typemodel, cible)
 
+
+def load_latest_model(targetname: str, experiment_name: str, run_name, df):
+    """
+    - Vérifie si l'expérience existe
+    - Vérifie si un run existe
+    - Vérifie si le modèle se charge
+    - Si quelque chose manque → build_data() + train()
+    """
+
+    # ---------------------------
+    # 1) Vérifier si l'expérience existe
+    # ---------------------------
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+
+    if experiment is None:
+        # si l’expérience n’existe pas → build + train
+              ndf = df.copy()
+              ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
+              ndf = ndf.iloc[:-3]
+              target = ndf['target_up']
+              dataexplicative = ndf.drop(columns=['date', 'target_up'])
+              model = train(dataexplicative, target, targetname)
+              return model
+
+    # maintenant on est sûr que l'expérience existe
+    experiment_id = experiment.experiment_id
+
+
+    # petite fonction interne pour chercher le dernier modèle
+    def _search_and_load():
+        runs = mlflow.search_runs(
+            experiment_ids=[experiment_id],
+            filter_string=(
+                f"tags.mlflow.runName = '{run_name}' "
+                f"and attributes.status = 'FINISHED'"
+            ),
+            max_results=1,
+        )
+        if runs.empty:
+            return None
+
+        run_id = runs.iloc[0].run_id
+        model_uri = f"runs:/{run_id}/model"
+        model = mlflow.sklearn.load_model(model_uri)
+        return model
+
+    # --------------------------------------
+    # 2) Première tentative de chargement
+    # --------------------------------------
+    try:
+        model = _search_and_load()
+    except Exception:
+        model = None
+
+    # --------------------------------------
+    # 3) Si rien trouvé → build + train
+    # --------------------------------------
+    if model is None: 
+        ndf = df.copy()
+        ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
+        ndf = ndf.iloc[:-3]
+        target = ndf['target_up']
+        dataexplicative = ndf.drop(columns=['date', 'target_up'])
+        ndf["target_up"] = (ndf["price"].shift(-7) > ndf["price"]).astype(int)
+        ndf = ndf.iloc[:-7]
+        target = ndf['target_up']
+        dataexplicative = ndf.drop(columns=['date', 'target_up'])
+        model = train(dataexplicative, target, targetname)
+    return model
+
+
