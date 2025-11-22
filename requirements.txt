@@ -7,3 +7,4 @@ category-encoders==2.6.3     # version plus ancienne compatible avec scikit-lear
 requests==2.32.3
 azureml-mlflow==1.60.0
 matplotlib
+seaborn
