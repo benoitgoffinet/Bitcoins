@@ -61,7 +61,7 @@ jobs:
 
       # 🆕 Étape ajoutée ici
       - name: Set startup command for Dash
-        run: az webapp config set -n bitcoins -g <TON_RESOURCE_GROUP> --startup-file "gunicorn app:server"
+        run: az webapp config set -n bitcoins -g bitcoins_group --startup-file "gunicorn app:server"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
@@ -69,3 +69,4 @@ jobs:
           app-name: 'bitcoins'
           slot-name: 'Production'
           package: .
+
