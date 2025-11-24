@@ -59,10 +59,13 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E1886B30D4EF426D8C62BD023C4F5F5C }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_DB37BE7F0DEE4EFC83BB8D05771338AA }}
 
+      # 🆕 Étape ajoutée ici
+      - name: Set startup command for Dash
+        run: az webapp config set -n bitcoins -g <TON_RESOURCE_GROUP> --startup-file "gunicorn app:server"
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'bitcoins'
           slot-name: 'Production'
           package: .
-
