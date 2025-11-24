@@ -28,9 +28,11 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # 🔁 Supprime tout ancien venv pour éviter les conflits (ex: Python 3.14)
+          rm -rf antenv
           python -m venv antenv
           source antenv/bin/activate
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Upload artifact
@@ -38,15 +40,16 @@ jobs:
         with:
           name: python-app
           path: .
-          # (⚠️ garde antenv si tu désactives Oryx)
-          # !antenv/   <-- à commenter si SCM_DO_BUILD_DURING_DEPLOYMENT=false
+          # Si SCM_DO_BUILD_DURING_DEPLOYMENT est TRUE (défaut Azure), exclure le venv :
+          # !antenv/
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write      # Obligatoire pour OIDC (authentification Azure)
-      contents: read       # Nécessaire pour récupérer le code source
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -59,7 +62,6 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E1886B30D4EF426D8C62BD023C4F5F5C }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_DB37BE7F0DEE4EFC83BB8D05771338AA }}
 
-      # 🆕 Étape ajoutée ici
       - name: Set startup command for Dash
         run: az webapp config set -n bitcoins -g bitcoins_group --startup-file "gunicorn app:server"
 
@@ -69,5 +71,3 @@ jobs:
           app-name: 'bitcoins'
           slot-name: 'Production'
           package: .
-
-
