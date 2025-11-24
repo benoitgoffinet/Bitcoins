@@ -15,32 +15,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
 
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-
-      - name: Install dependencies
+      - name: Clear and recreate virtual environment
         run: |
-          # 🔁 Supprime tout ancien venv pour éviter les conflits (ex: Python 3.14)
+          echo "Cleaning old virtual environment..."
           rm -rf antenv
           python -m venv antenv
           source antenv/bin/activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Upload artifact
+      - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:
           name: python-app
           path: .
-          # Si SCM_DO_BUILD_DURING_DEPLOYMENT est TRUE (défaut Azure), exclure le venv :
+          # (Si Oryx reconstruit les dépendances côté Azure, tu peux exclure antenv)
           # !antenv/
 
   deploy:
@@ -71,4 +65,3 @@ jobs:
           app-name: 'bitcoins'
           slot-name: 'Production'
           package: .
-
