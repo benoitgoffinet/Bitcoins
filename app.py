@@ -6,25 +6,12 @@ from dash.dependencies import Input, Output
 import plotly.graph_objs as go
 import pandas as pd
 from datetime import datetime, date
-import mlflow
-from mlflow.tracking import MlflowClient
 from builddata import build_dataset
 from builddata import get_btc_history
 from train import train
+import joblib
 
 
-
-# =====================================
-# 0. CONFIG MLFLOW POUR AZURE ML
-# =====================================
-
-MLFLOW_TRACKING_URI = os.getenv(
-    "MLFLOW_TRACKING_URI",
-    "azureml://canadacentral.api.azureml.ms/mlflow/v1.0/subscriptions/b115f392-8b15-499a-a548-edd84815dbcb/resourceGroups/rg-bitcoins/providers/Microsoft.MachineLearningServices/workspaces/bitcoins_ws",
-)
-
-mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-client = MlflowClient()
 
 
 
@@ -36,138 +23,70 @@ client = MlflowClient()
 # =========================
 
 
-def load_latest_data(experiment_name: str, run_name):
-    """
-    - Vérifie si l'expérience existe
-    - Vérifie si un run existe
-    - Vérifie si le modèle se charge
-    - Si quelque chose manque → build_data() + train()
-    """
+def load_latest_data(path):
+    # 1️⃣ si le fichier existe, essayer de le charger
+    if os.path.isfile(path):
+        try:
+            df = pd.read_csv(path)
 
-    # ---------------------------
-    # 1) Vérifier si l'expérience existe
-    # ---------------------------
-    experiment = mlflow.get_experiment_by_name(experiment_name)
+            # Si le CSV est vide → créer le dataset
+            if df.empty:
+                print("⚠️ Fichier trouvé mais vide → génération du dataset.")
+                df = build_dataset()
+            else:
+                print("📂 Dataset chargé depuis :", path)
 
-    if experiment is None:
-        # si l’expérience n’existe pas → build + train
+            return df
+
+        except Exception as e:
+            print(f"⚠️ Erreur de lecture du fichier : {e} → génération du dataset.")
+            df = build_dataset()
+            return df
+
+    # 2️⃣ si le fichier n'existe pas → build_dataset()
+    else:
+        print("❌ Fichier introuvable → génération du dataset.")
         df = build_dataset()
-        # recréer l'expérience après entraînement
-        experiment = mlflow.get_experiment_by_name(experiment_name)
-
-    # maintenant on est sûr que l'expérience existe
-    experiment_id = experiment.experiment_id
-
-
-    # petite fonction interne pour chercher le dernier modèle
-    def _search_and_load():
-        runs = mlflow.search_runs(
-            experiment_ids=[experiment_id],
-            filter_string=(
-                f"and tags.mlflow.runName = '{run_name}' "
-                f"and attributes.status = 'FINISHED'"
-            ),
-            max_results=1,
-        )
-        if runs.empty:
-            return None
-
-        run_id = runs.iloc[0].run_id
-        client = MlflowClient()
-        local_path = client.download_artifacts(run_id, "dataframe")
-        csv_files = [f for f in os.listdir(local_path) if f.endswith(".csv")]
-        if not csv_files:
-                return None  # aucun CSV trouvé = problème
-        csv_path = os.path.join(local_path, csv_files[0])  # premier CSV trouvé
-        df = pd.read_csv(csv_path)
         return df
 
-    # --------------------------------------
-    # 2) Première tentative de chargement
-    # --------------------------------------
-    try:
-        df = _search_and_load()
-    except Exception:
-        df = None
 
-    # --------------------------------------
-    # 3) Si rien trouvé → build + train
-    # --------------------------------------
-    if df is None:  
-        df = build_dataset()
-
-    return df
-
-
-def load_latest_model(targetname: str, experiment_name: str, run_name, df):
+def load_latest_model(path, df):
     """
-    - Vérifie si l'expérience existe
-    - Vérifie si un run existe
-    - Vérifie si le modèle se charge
-    - Si quelque chose manque → build_data() + train()
+    Charge un modèle depuis path.
+    Si le fichier n'existe pas ou ne peut pas être lu → construit et retourne un nouveau modèle.
     """
 
-    # ---------------------------
-    # 1) Vérifier si l'expérience existe
-    # ---------------------------
-    experiment = mlflow.get_experiment_by_name(experiment_name)
+    # 1️⃣ Tenter de charger un modèle existant
+    if os.path.isfile(path):
+        try:
+            model = joblib.load(path)
+            print(f"📦 Modèle chargé depuis : {path}")
+            return model
 
-    if experiment is None:
-        # si l’expérience n’existe pas → build + train
-            if model is None: 
-              ndf = df.copy()
-              ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
-              ndf = ndf.iloc[:-3]
-              target = ndf['target_up']
-              dataexplicative = ndf.drop(columns=['date', 'target_up'])
-              model = train(dataexplicative, target, targetname)
-              return model
+        except Exception as e:
+            print(f"⚠️ Erreur lors du chargement du modèle ({path}) : {e}")
+            print("🔄 Réentraînement du modèle...")
 
-    # maintenant on est sûr que l'expérience existe
-    experiment_id = experiment.experiment_id
+    else:
+        print(f"❌ Fichier modèle introuvable : {path}")
+        print("🔄 Entraînement d’un nouveau modèle...")
 
+    # 2️⃣ Si on arrive ici → entraîner un nouveau modèle
+    ndf = df.copy()
+    ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
+    ndf = ndf.iloc[:-3]
 
-    # petite fonction interne pour chercher le dernier modèle
-    def _search_and_load():
-        runs = mlflow.search_runs(
-            experiment_ids=[experiment_id],
-            filter_string=(
-                f"tags.mlflow.runName = '{run_name}' "
-                f"and attributes.status = 'FINISHED'"
-            ),
-            max_results=1,
-        )
-        if runs.empty:
-            return None
+    target = ndf["target_up"]
+    dataexplicative = ndf.drop(columns=["date", "target_up"])
 
-        run_id = runs.iloc[0].run_id
-        model_uri = f"runs:/{run_id}/model"
-        model = mlflow.sklearn.load_model(model_uri)
-        return model
+    # Entraînement du modèle
+    model = train(dataexplicative, target)
 
-    # --------------------------------------
-    # 2) Première tentative de chargement
-    # --------------------------------------
-    try:
-        model = _search_and_load()
-    except Exception:
-        model = None
+    print("✅ Nouveau modèle entraîné.")
 
-    # --------------------------------------
-    # 3) Si rien trouvé → build + train
-    # --------------------------------------
-    if model is None: 
-        ndf = df.copy()
-        ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
-        ndf = ndf.iloc[:-3]
-        target = ndf['target_up']
-        dataexplicative = ndf.drop(columns=['date', 'target_up'])
-        ndf["target_up"] = (ndf["price"].shift(-7) > ndf["price"]).astype(int)
-        ndf = ndf.iloc[:-7]
-        target = ndf['target_up']
-        dataexplicative = ndf.drop(columns=['date', 'target_up'])
-        model = train(dataexplicative, target, targetname)
     return model
+
+
 
 
 
@@ -286,13 +205,10 @@ app.layout = html.Div(
 def update_dashboard(n, purchase_date):
     # On recharge l'historique à chaque mise à jour (simple, mais pas optimisé)
     today_str = date.today().strftime("%Y-%m-%d")
-    experiment_name = f"Data"
-    run = f"{experiment_name}_{today_str}"
-    df = load_latest_data(experiment_name, run)
-    cible = "3j"
-    experiment_name = f"Model{cible}"
-    run = f"{experiment_name}{today_str}"
-    model_3j  = load_latest_model(cible,  experiment_name, run, df)
+    path = F'data/data_{today_str}.csv'
+    df = load_latest_data(path)
+    pathmodel = F'model/model_{today_str}.pkl'
+    model_3j  = load_latest_model(pathmodel, df)
     dfderniereligne = df.drop(columns=['date']).iloc[-1:]
     prediction3j = model_3j.predict(dfderniereligne)
     proba_3j_hausse = model_3j.predict_proba(dfderniereligne)[0][1] * 100

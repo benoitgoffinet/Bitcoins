@@ -1,7 +1,6 @@
 import requests
 import pandas as pd
 import numpy as np
-import mlflow
 from datetime import date
 import os
 import tempfile
@@ -95,27 +94,8 @@ def add_features(df):
 def build_dataset(days=365):
     df_raw = get_btc_history(days)
     df_feat = add_features(df_raw)
-    sandmlflowdata(df_feat)
+    today_str = date.today().strftime("%Y-%m-%d")
+    path = F'data/data_{today_str}.csv'
+    df_feat.to_csv(path, index=False)
     return df_feat
 
-def sandmlflowdata(df):
-    # 1. Nom de l'expérience
-   experiment_name = "Data"
-   mlflow.set_experiment(experiment_name)
-
-# 2. Nom du run = Data_YYYY-MM-DD
-   today_str = date.today().strftime("%Y-%m-%d")
-   run_name = f"Data_{today_str}"
-
-   with mlflow.start_run(run_name=run_name):
-    # (optionnel) log de quelques infos
-    mlflow.log_param("source", "pipeline_daily")
-    mlflow.set_tag("date", today_str)
-
-    # 3. Sauver le df temporairement en CSV puis l'envoyer comme artifact
-    with tempfile.TemporaryDirectory() as tmpdir:
-        file_path = os.path.join(tmpdir, f"data_{today_str}.csv")
-        df.to_csv(file_path, index=False)
-
-        # artifact_path = dossier logique dans MLflow
-        mlflow.log_artifact(file_path, artifact_path="dataframe")

@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-import mlflow
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
@@ -17,43 +16,11 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from category_encoders import TargetEncoder  
 from datetime import datetime, date
-
-def sandmlflow(experience, run, model, f1_cv, f1_test, acc_test, typemodel, cible):
-     # 1. Nom de l'expérience
- today_str = date.today().strftime("%Y-%m-%d")
- experiment_name = experience
- mlflow.set_experiment(experiment_name)
-
-# 2. Nom du run = Data_YYYY-MM-DD
- run_name = run
- with mlflow.start_run(run_name=run_name):
-    # --- PARAMS / TAGS ---
-    mlflow.log_param("model_type", typemodel)
-    mlflow.log_param("source", "pipeline_daily")
-    mlflow.set_tag("date", today_str)
-
-    # (optionnel) log des hyperparamètres du modèle
-    if hasattr(model, "get_params"):
-        params = model.get_params()
-        # tu peux filtrer si tu ne veux pas tout envoyer
-        for k, v in params.items():
-            mlflow.log_param(k, v)
-
-    # --- METRIQUES ---
-    mlflow.log_metric("f1_macro_cv", f1_cv)
-    mlflow.log_metric("f1_macro_test", f1_test)
-    mlflow.log_metric("accuracy_test", acc_test)
-     # --- MODÈLE ENREGISTRÉ COMME ARTIFACT ---
-    mlflow.sklearn.log_model(
-        sk_model=model,
-        artifact_path="model",
-        registered_model_name=None  # ou un nom global si tu utilises le Model Registry
-    )
+import joblib
 
 
 
-
-def train(dexplicative, target, ciblename):
+def train(dexplicative, target):
     # Variables explicatives et cible
  
  X = dexplicative
@@ -121,11 +88,8 @@ def train(dexplicative, target, ciblename):
  print(f"🔷 F1 Weighted     : {f1_weighted:.4f}")
  # 1. Nom de l'expérience
  today_str = date.today().strftime("%Y-%m-%d")
- cible = ciblename
- experience = f"Model{cible}"
- typemodel = 'Randomforest'
- run = f"{experience}{today_str}"
  model = best_model
  f1_cv = grid_search.best_score_
- sandmlflow(experience, run, model, f1_cv, f1_macro, accuracy, typemodel, cible)
+ pathmodel = F'model/model_{today_str}.pkl'
+ joblib.dump(model, pathmodel)
 
