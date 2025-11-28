@@ -14,20 +14,9 @@ from builddata import get_btc_history
 from builddata import load_latest_data
 from train import train
 from train import load_latest_model
+from azure.storage.blob import BlobClient
+import io
 
-
-
-# =====================================
-# 1. CONFIG MLFLOW POUR AZURE ML
-# =====================================
-
-MLFLOW_TRACKING_URI = os.getenv(
-    "MLFLOW_TRACKING_URI",
-    "azureml://canadacentral.api.azureml.ms/mlflow/v1.0/subscriptions/b115f392-8b15-499a-a548-edd84815dbcb/resourceGroups/rg-bitcoins/providers/Microsoft.MachineLearningServices/workspaces/bitcoins_ws",
-)
-
-mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-client = MlflowClient()
 
 
 # =========================
