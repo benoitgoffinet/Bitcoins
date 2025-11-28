@@ -16,6 +16,7 @@ from train import train
 from train import load_latest_model
 from azure.storage.blob import BlobClient
 import io
+import requests
 
 
 
