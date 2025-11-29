@@ -4,11 +4,23 @@ import numpy as np
 from datetime import date
 import os
 import tempfile
+from azure.storage.blob import BlobClient
+import io
+import requests
 # ======================================================
 # 1. Fonction pour récupérer l'historique Bitcoin (prix + volume)
 # ======================================================
 
+def save_df(df, local_path, blob_path):
+    # 1. Sauvegarde du DataFrame en local
+    df.to_csv(local_path, index=False)
 
+    # 2. Connexion à Azure Blob Storage
+    blob = BlobClient.from_connection_string(
+        conn_str=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
+        container_name="data",
+        blob_name=blob_path
+    )
 def get_btc_history(days=365):
     """
     Récupère les prix et volumes BTC/EUR sur X jours (données daily).
@@ -95,7 +107,7 @@ def build_dataset(days=365):
     df_raw = get_btc_history(days)
     df_feat = add_features(df_raw)
     today_str = date.today().strftime("%Y-%m-%d")
-    path = F'data/data_{today_str}.csv'
-    df_feat.to_csv(path, index=False)
+    path = F'data/data.csv'
+    path_blob = F'data_{today_str}.csv'
+    save_df(df, path, path_blob)
     return df_feat
-

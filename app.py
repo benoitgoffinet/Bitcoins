@@ -10,6 +10,9 @@ from builddata import build_dataset
 from builddata import get_btc_history
 from train import train
 import joblib
+from azure.storage.blob import BlobClient
+import io
+import requests
 
 
 
@@ -23,72 +26,67 @@ import joblib
 # =========================
 
 
-def load_latest_data(path):
-    # 1️⃣ si le fichier existe, essayer de le charger
-    if os.path.isfile(path):
-        try:
-            df = pd.read_csv(path)
+def load_latest_data(blob_path):
+    """
+    Charge un fichier CSV spécifique dans Azure Blob Storage.
+    Si le fichier est introuvable, appelle build_dataset().
+    """
+    try:
+        blob = BlobClient.from_connection_string(
+            conn_str=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
+            container_name="data",
+            blob_name=blob_path
+        )
 
-            # Si le CSV est vide → créer le dataset
-            if df.empty:
-                print("⚠️ Fichier trouvé mais vide → génération du dataset.")
-                df = build_dataset()
-            else:
-                print("📂 Dataset chargé depuis :", path)
+        stream = io.BytesIO(blob.download_blob().readall())
+        df = pd.read_csv(stream)
 
-            return df
+        print(f"✔ Fichier chargé depuis Azure : {blob_path}")
+        return df
 
-        except Exception as e:
-            print(f"⚠️ Erreur de lecture du fichier : {e} → génération du dataset.")
-            df = build_dataset()
-            return df
-
-    # 2️⃣ si le fichier n'existe pas → build_dataset()
-    else:
-        print("❌ Fichier introuvable → génération du dataset.")
+    except Exception as e:
+        print(f"❌ Erreur lors du chargement ({blob_path}) : {e}")
+        print("➡ Exécution de build_dataset()")
         df = build_dataset()
         return df
 
 
-def load_latest_model(path, df):
+
+def load_latest_model(blob_path, df):
     """
-    Charge un modèle depuis path.
-    Si le fichier n'existe pas ou ne peut pas être lu → construit et retourne un nouveau modèle.
+    Charge un modèle .pkl spécifique depuis Azure Blob Storage (conteneur 'models').
+    Si le fichier est introuvable, appelle build_model().
     """
+    try:
+        blob = BlobClient.from_connection_string(
+            conn_str=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
+            container_name="models",
+            blob_name=blob_path
+        )
 
-    # 1️⃣ Tenter de charger un modèle existant
-    if os.path.isfile(path):
-        try:
-            model = joblib.load(path)
-            print(f"📦 Modèle chargé depuis : {path}")
-            return model
+        # Télécharger en mémoire
+        stream = io.BytesIO(blob.download_blob().readall())
 
-        except Exception as e:
-            print(f"⚠️ Erreur lors du chargement du modèle ({path}) : {e}")
-            print("🔄 Réentraînement du modèle...")
+        # Charger le .pkl
+        model = pickle.load(stream)
 
-    else:
-        print(f"❌ Fichier modèle introuvable : {path}")
-        print("🔄 Entraînement d’un nouveau modèle...")
+        print(f"✔ Modèle chargé depuis Azure : {blob_path}")
+        return model
 
-    # 2️⃣ Si on arrive ici → entraîner un nouveau modèle
-    ndf = df.copy()
-    ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
-    ndf = ndf.iloc[:-3]
-
-    target = ndf["target_up"]
-    dataexplicative = ndf.drop(columns=["date", "target_up"])
-
-    # Entraînement du modèle
-    model = train(dataexplicative, target)
-
-    print("✅ Nouveau modèle entraîné.")
-
-    return model
+    except Exception as e:
+        ndf = df.copy()
+        ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
+        ndf = ndf.iloc[:-3]
+        target = ndf["target_up"]
+        dataexplicative = ndf.drop(columns=["date", "target_up"])
+        model = train(dataexplicative, target)
+        print("✅ Nouveau modèle entraîné.")
+        return model
 
 
 
-
+# test
+print("DEBUG STORAGE =", os.getenv("AZURE_STORAGE_CONNECTION_STRING"))
 
 
 # =========================
@@ -205,9 +203,9 @@ app.layout = html.Div(
 def update_dashboard(n, purchase_date):
     # On recharge l'historique à chaque mise à jour (simple, mais pas optimisé)
     today_str = date.today().strftime("%Y-%m-%d")
-    path = F'data/data_{today_str}.csv'
+    path = F'data_{today_str}.csv'
     df = load_latest_data(path)
-    pathmodel = F'model/model_{today_str}.pkl'
+    pathmodel = F'model_{today_str}.pkl'
     model_3j  = load_latest_model(pathmodel, df)
     dfderniereligne = df.drop(columns=['date']).iloc[-1:]
     prediction3j = model_3j.predict(dfderniereligne)

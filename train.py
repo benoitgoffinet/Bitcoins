@@ -17,6 +17,36 @@ from sklearn.pipeline import Pipeline
 from category_encoders import TargetEncoder  
 from datetime import datetime, date
 import joblib
+from azure.storage.blob import BlobClient
+import io
+import requests
+
+
+def save_model_pkl(model, local_path, blob_path):
+    """
+    Sauvegarde un modèle en .pkl localement puis le charge dans Azure (container: models)
+    model      : objet Python (sklearn, dict, etc.)
+    local_path : chemin local pour écrire le fichier .pkl
+    blob_path  : chemin dans Azure Blob Storage (models/model.pkl)
+    """
+    # 1. Sauvegarde du modèle en local
+    with open(local_path, "wb") as f:
+        pickle.dump(model, f)
+
+    # 2. Connexion Azure
+    blob = BlobClient.from_connection_string(
+        conn_str=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
+        container_name="models",  # <-- ton conteneur pour les modèles
+        blob_name=blob_path
+    )
+
+    # 3. Upload du fichier
+    with open(local_path, "rb") as f:
+        blob.upload_blob(f, overwrite=True)
+
+    print(f"✔ Modèle sauvegardé localement : {local_path}")
+    print(f"✔ Modèle uploadé dans Azure    : models/{blob_path}")
+
 
 
 
@@ -91,5 +121,6 @@ def train(dexplicative, target):
  model = best_model
  f1_cv = grid_search.best_score_
  pathmodel = F'model/model_{today_str}.pkl'
- joblib.dump(model, pathmodel)
-
+ local_path = F'model/model.pkl'
+ blob_path = F'model_{today_str}.pkl'
+ ave_model_pkl(model, local_path, blob_path):

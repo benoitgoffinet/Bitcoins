@@ -3,6 +3,6 @@ gunicorn==23.0.0
 plotly==5.24.1
 pandas==2.2.3
 scikit-learn==1.5.2
-category-encoders==2.6.3     # version plus ancienne compatible avec scikit-learn<1.6
+category-encoders==2.6.3
 requests==2.32.3
-azureml-mlflow==1.60.0
+azure-storage-blob
