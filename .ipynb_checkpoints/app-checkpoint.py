@@ -75,10 +75,10 @@ def load_latest_model(blob_path, df):
 
     except Exception as e:
         ndf = df.copy()
-        ndf["target_up"] = (ndf["price"].shift(-3) > ndf["price"]).astype(int)
-        ndf = ndf.iloc[:-3]
+        ndf["target_up"] = (ndf["price"].shift(-7) > ndf["price"]).astype(int)
+        ndf = ndf.iloc[:-7]
         target = ndf["target_up"]
-        dataexplicative = ndf.drop(columns=["date", "target_up"])
+        dataexplicative = ndf.drop(columns=["date", "target_up", "return_7d"])
         model = train(dataexplicative, target)
         print("✅ Nouveau modèle entraîné.")
         return model
@@ -135,21 +135,7 @@ app.layout = html.Div(
                         html.Div(id="avg-30d-diff", style={"fontSize": "18px"})
                     ]
                 ),
-                html.Div(
-                    style={"textAlign": "center"},
-                    children=[
-                        html.H3("Par rapport à votre date"),
-                        dcc.DatePickerSingle(
-                            id="purchase-date",
-                            min_date_allowed=min_date,
-                            max_date_allowed=max_date,
-                            date=max_date,  # par défaut, la dernière date des données
-                            display_format="DD/MM/YYYY"
-                        ),
-                        html.Div(id="purchase-compare", style={"marginTop": "10px", "fontSize": "18px"})
-                    ]
-                ),
-
+               
             ]
         ),
             
@@ -191,26 +177,24 @@ app.layout = html.Div(
         Output("current-price", "children"),
         Output("avg-30d", "children"),
         Output("avg-30d-diff", "children"),
-        Output("purchase-compare", "children"),
         Output("price-chart", "figure"),
-        Output("prediction-3j", "children"),
+        Output("prediction", "children"),
     ],
     [
         Input("interval-component", "n_intervals"),
-        Input("purchase-date", "date"),
     ]
 )
-def update_dashboard(n, purchase_date):
+def update_dashboard(n):
     # On recharge l'historique à chaque mise à jour (simple, mais pas optimisé)
     today_str = date.today().strftime("%Y-%m-%d")
     path = F'data_{today_str}.csv'
     df = load_latest_data(path)
     pathmodel = F'model_{today_str}.pkl'
-    model_3j  = load_latest_model(pathmodel, df)
-    dfderniereligne = df.drop(columns=['date']).iloc[-1:]
-    prediction3j = model_3j.predict(dfderniereligne)
-    proba_3j_hausse = model_3j.predict_proba(dfderniereligne)[0][1] * 100
-    proba_3j_baisse = 100 - proba_3j_hausse
+    model  = load_latest_model(pathmodel, df)
+    dfderniereligne = df.drop(columns=['date', "return_7d"]).iloc[-1:]
+    prediction = model.predict(dfderniereligne)
+    proba_hausse = model.predict_proba(dfderniereligne)[0][1] * 100
+    proba_baisse = 100 - proba_hausse
     df_90 = df.tail(90)
     # --- Prix actuel ---
     last_row = df_90.iloc[-1]
@@ -231,31 +215,12 @@ def update_dashboard(n, purchase_date):
     else:
         diff_text = f"Actuellement ~ {diff_pct:.1f} % en-dessous de la moyenne 30 j"
 
-    # --- Comparaison avec la date choisie ---
-    purchase_msg = "Choisissez une date pour comparer."
-    if purchase_date is not None:
-        try:
-            purchase_date_obj = datetime.fromisoformat(purchase_date).date()
-            # On cherche si cette date existe dans le df
-            df_by_date = df_90.set_index("date")
-            if purchase_date_obj in df_by_date.index:
-                purchase_price = df_by_date.loc[purchase_date_obj]["price"]
-                var_pct = (current_price / purchase_price - 1) * 100
-                direction = "hausse" if var_pct >= 0 else "baisse"
-                purchase_msg = (
-                    f"Depuis le {purchase_date_obj.strftime('%d/%m/%Y')} : "
-                    f"{var_pct:+.1f} % ({direction})\n"
-                    f"De {purchase_price:,.2f} € à {current_price:,.2f} €"
-                ).replace(",", " ")
-            else:
-                purchase_msg = "Pas de données pour cette date (trop ancienne ou future)."
-        except Exception:
-            purchase_msg = "Date invalide."
+   
     # predictions
-    if prediction3j == 0:
-       prediction_3j = f"📉 Tendance sur 3 jours : baisse probable (probabilitée = {round(proba_3j_baisse, 2)} %)"
+    if prediction == 0:
+       prediction = f"📉 Tendance sur 7 jours : baisse probable (probabilitée = {round(proba_baisse, 2)} %)"
     else:
-       prediction_3j = f"📈 Tendance sur 3 jours : Hausse probable (probabilitée = {round(proba_3j_hausse, 2)} %)"
+       prediction = f"📈 Tendance sur 7 jours : Hausse probable (probabilitée = {round(proba_hausse, 2)} %)"
         
     # --- Graphique ---
     fig = {
@@ -275,7 +240,7 @@ def update_dashboard(n, purchase_date):
         )
     }
 
-    return current_text, avg_text, diff_text, purchase_msg, fig, prediction_3j
+    return current_text, avg_text, diff_text, fig, prediction
 
 
 if __name__ == "__main__":

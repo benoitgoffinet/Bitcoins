@@ -53,34 +53,84 @@ def get_btc_history(days=365):
 def add_features(df):
     df = df.copy()
 
-    # Variation 1 jour (%)
-    df["return_1d"] = df["price"].pct_change() * 100
+    # 1) RETURNS (log-returns + pct)
+    # ============================
+    df["return_1d"] = df["price"].pct_change(1)
+    df["return_3d"] = df["price"].pct_change(3)
+    df["return_7d"] = df["price"].pct_change(7)
+    df["return_14d"] = df["price"].pct_change(14)
+    df["return_30d"] = df["price"].pct_change(30)
 
-    # Variation 3 jours (%)
-    df["return_3d"] = df["price"].pct_change(3) * 100
+    df["log_return_1d"] = np.log(df["price"] / df["price"].shift(1))
 
-    # Variation 7 jours (%)
-    df["return_7d"] = df["price"].pct_change(7) * 100
+    # ============================
+    # 2) MOVING AVERAGES
+    # ============================
+    df["MA7"] = df["price"].rolling(7).mean()
+    df["MA30"] = df["price"].rolling(30).mean()
 
-    # Variation 14 jours (%)
-    df["return_14d"] = df["price"].pct_change(14) * 100
-
-    # Moyennes mobiles
-    df["MA7"]  = df["price"].rolling(window=7).mean()
-    df["MA30"] = df["price"].rolling(window=30).mean()
-
-    # Diff MA7-MA30
     df["MA_diff"] = df["MA7"] - df["MA30"]
+    df["MA7_over_MA30"] = df["MA7"] / df["MA30"]
 
-    # Volatilité
-    df["vol_7d"] = df["return_1d"].rolling(window=7).std()
+    # Slopes
+    df["slope_MA7"] = df["MA7"].diff()
+    df["slope_MA30"] = df["MA30"].diff()
 
-    # Volume MA7
-    df["vol_MA7"] = df["volume"].rolling(window=7).mean()
+    # ============================
+    # 3) VOLATILITY (from returns)
+    # ============================
+    df["vol_7d"] = df["return_1d"].rolling(7).std()
+    df["vol_14d"] = df["return_1d"].rolling(14).std()
+    df["vol_30d"] = df["return_1d"].rolling(30).std()
 
-    # Plus haut / bas 30 jours
+    df["realized_vol_7"] = np.sqrt((df["return_1d"]**2).rolling(7).sum())
+    df["realized_vol_14"] = np.sqrt((df["return_1d"]**2).rolling(14).sum())
+
+    # ============================
+    # 4) PRICE RANGE (with only price)
+    # ============================
     df["highest_30"] = df["price"].rolling(30).max()
-    df["lowest_30"]  = df["price"].rolling(30).min()
+    df["lowest_30"] = df["price"].rolling(30).min()
+
+    df["distance_to_high_30"] = df["highest_30"] - df["price"]
+    df["distance_to_low_30"] = df["price"] - df["lowest_30"]
+    df["range_30"] = df["highest_30"] - df["lowest_30"]
+    df["range_30_ratio"] = df["range_30"] / df["price"]
+
+    # ============================
+    # 5) VOLUME FEATURES
+    # ============================
+    df["volume_change_1d"] = df["volume"].pct_change(1)
+    df["vol_MA7"] = df["volume"].rolling(7).mean()
+    df["vol_MA30"] = df["volume"].rolling(30).mean()
+    df["volume_ratio"] = df["volume"] / df["vol_MA30"]
+
+    # OBV (simplifié)
+    df["OBV"] = (np.sign(df["return_1d"]) * df["volume"]).fillna(0).cumsum()
+
+    # ============================
+    # 6) RSI / MACD (based on price)
+    # ============================
+    delta = df["price"].diff()
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = (-delta.clip(upper=0)).rolling(14).mean()
+    rs = gain / loss
+    df["RSI14"] = 100 - (100 / (1 + rs))
+
+    df["EMA12"] = df["price"].ewm(span=12, adjust=False).mean()
+    df["EMA26"] = df["price"].ewm(span=26, adjust=False).mean()
+    df["MACD"] = df["EMA12"] - df["EMA26"]
+    df["MACD_signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
+    df["MACD_hist"] = df["MACD"] - df["MACD_signal"]
+
+    # ============================
+    # 7) REGIME FEATURES
+    # ============================
+    df["regime"] = (df["price"] > df["MA30"]).astype(int)
+    df["trend_strength"] = df["MA_diff"] / df["MA30"]
+    df["volatility_regime"] = (df["vol_7d"] > df["vol_30d"]).astype(int)
+
+
 
     # Position dans le canal
     df["pos_channel_30"] = (
