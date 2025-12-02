@@ -1,0 +1,10 @@
+[('preprocessing', ColumnTransformer(transformers=[('num', StandardScaler(),
+                                 ['price', 'volume', 'return_1d', 'return_3d',
+                                  'return_7d', 'return_14d', 'MA7', 'MA30',
+                                  'MA_diff', 'vol_7d', 'vol_MA7', 'highest_30',
+                                  'lowest_30', 'pos_channel_30']),
+                                ('cat',
+                                 OneHotEncoder(drop='first',
+                                               handle_unknown='ignore'),
+                                 [])])), ('model', RandomForestClassifier(max_depth=10, min_samples_split=4, n_estimators=50,
+                       random_state=42))]

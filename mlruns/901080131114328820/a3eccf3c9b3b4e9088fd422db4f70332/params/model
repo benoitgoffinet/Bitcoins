@@ -1,0 +1,2 @@
+LogisticRegression(C=10, l1_ratio=0.3, max_iter=1000, penalty='elasticnet',
+                   random_state=42, solver='saga')
